@@ -1,12 +1,13 @@
 import "dotenv/config";
 import express from "express";
-import cors from "cors";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const app = express();
 const port = Number(process.env.PORT || 3001);
-const allowedOrigin = process.env.CLIENT_ORIGIN || "http://localhost:5173";
+const here = path.dirname(fileURLToPath(import.meta.url));
+const clientDist = path.resolve(here, "../../client/dist");
 
-app.use(cors({ origin: allowedOrigin }));
 app.use(express.json({ limit: "32kb" }));
 
 app.get("/api/health", (_req, res) => {
@@ -16,8 +17,8 @@ app.get("/api/health", (_req, res) => {
 app.post("/api/chat", async (req, res) => {
   try {
     const apiKey = process.env.GROQ_API_KEY;
-    if (!apiKey || apiKey === "replace_with_your_new_key") {
-      return res.status(503).json({ error: "The AI service is not configured yet. Add GROQ_API_KEY to server/.env." });
+    if (!apiKey) {
+      return res.status(503).json({ error: "The AI service is not configured. Add GROQ_API_KEY to the hosting service environment." });
     }
 
     const messages = req.body?.messages;
@@ -70,6 +71,14 @@ app.post("/api/chat", async (req, res) => {
   }
 });
 
-app.listen(port, () => {
-  console.log(`JARVIS API listening on http://localhost:${port}`);
+// Serve the built React app from the same origin as the API.
+app.use(express.static(clientDist));
+app.get("*", (_req, res) => {
+  res.sendFile(path.join(clientDist, "index.html"), (error) => {
+    if (error) res.status(404).send("JARVIS frontend has not been built yet.");
+  });
+});
+
+app.listen(port, "0.0.0.0", () => {
+  console.log(`JARVIS listening on port ${port}`);
 });
